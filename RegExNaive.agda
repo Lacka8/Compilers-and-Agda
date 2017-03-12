@@ -1,4 +1,4 @@
-module RegExNaive where
+module RegExNaiv ewhere
 
 open import Function using(_∘_;_∋_)
 open import Relation.Nullary using(yes;no)
