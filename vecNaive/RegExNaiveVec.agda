@@ -9,7 +9,7 @@ open import Relation.Binary.PropositionalEquality using(_≡_;refl)
 open import Data.Sum using(_⊎_) renaming(inj₁ to inj1;inj₂ to inj2)
 open import Data.Product using(_×_;Σ;_,_) renaming(proj₁ to proj1;proj₂ to proj2)
 open import Data.String using(toList)
-open import Data.Vec using(Vec;[];_∷_;[_];map;_++_)
+open import Data.Vec using(Vec;[];_∷_;[_];map;_++_;fromList)
 
 --open import Category.Monad
 --open import Agda.Primitive
@@ -33,9 +33,23 @@ data Split {A : Set}: {n m : ℕ} → Vec A (n + m) → Vec A n → Vec A m → 
 
 -- splits makes all possible splits of a list and returns the 2 parts in a triple with a proof that they realz form the original list 
 
-splits : {n : ℕ} → {A : Set} → (v : Vec A n) → Vec (Σ (ℕ × ℕ) (λ {(a , b) → Σ ((Vec A a) × (Vec A b) × ((a + b) ≡ n)) (λ { (v1 , v2 , refl) → Split {A} {a} {b} v v1 v2})})) (suc n)
+Splitlet : {A : Set} → {n : ℕ} → Vec A n → Set
+Splitlet {A} {n} v = (Σ (ℕ × ℕ) (λ {(a , b) → Σ ((Vec A a) × (Vec A b) × ((a + b) ≡ n)) (λ { (v1 , v2 , refl) → Split {A} {a} {b} v v1 v2})}))
+
+
+Splits : {A : Set} → {n : ℕ}→ Vec A n → Set
+Splits {A} {n} v = Vec (Splitlet v) (suc n)
+
+suffix : {n : ℕ} → {A : Set} → (v : Vec A n) → Splitlet v
+suffix {n} v = (0 , n) , (([] , (v , refl)) , emp)
+
+append : {n : ℕ} → {A : Set} → {xs : Vec A n} → (x : A) → Splitlet xs → Splitlet (x ∷ xs)
+append {n} {xs = xs} x s = (1 , n) , (x ∷ [] , (xs , refl)) , plus emp
+
+splits : {n : ℕ} → {A : Set} → (v : Vec A n) → Splits v
 splits [] = ((0 , 0) , ([] , [] , refl) , emp) ∷ []
-splits {n} (x ∷ xs) = (map {!!} (splits {!!})) ++ [ (0 , n) , (([] , (x ∷ xs , refl)) , emp) ]
+splits {n} (x ∷ xs) =   (suffix (x ∷ xs))  ∷ (map (append x) (splits xs))
+
 --Vec (Σ (ℕ × ℕ) (λ {(a , b) →(n ≡ (a + b) × Σ (Vec A a × Vec A b) (λ { (s1 , s2) → Split s s1 s2 }))})) 
 --splits [] = [ (([] , []) , emp) ]
 --splits  (x ∷ xs) = map (λ {((s1 , s2) , p) → ((x ∷ s1) , s2) , plus p}) (splits xs) ++ [ (([] , x ∷ xs) , emp) ]
