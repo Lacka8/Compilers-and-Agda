@@ -1,14 +1,15 @@
-module RegExNaive where
+module RegExNaiveVec where
 
 open import Function using(_∘_;_∋_)
 open import Relation.Nullary using(yes;no)
 open import Data.Char using(Char;_≟_)
 open import Data.Nat using(ℕ;zero;suc;_≤_;z≤n;s≤s;_+_;_⊔_)
-open import Data.List using(List;[];_∷_;[_];map;concat;_++_;concatMap;foldr;length)--renaming(monad to monad)
+--open import Data.List using(List;[];_∷_;[_];map;concat;_++_;concatMap;foldr;length)--renaming(monad to monad)
 open import Relation.Binary.PropositionalEquality using(_≡_;refl)
 open import Data.Sum using(_⊎_) renaming(inj₁ to inj1;inj₂ to inj2)
 open import Data.Product using(_×_;Σ;_,_) renaming(proj₁ to proj1;proj₂ to proj2)
 open import Data.String using(toList)
+open import Data.Vec using(Vec;[];_∷_;[_];map;_++_)
 
 --open import Category.Monad
 --open import Agda.Primitive
@@ -26,15 +27,20 @@ data RegEx : Set where
 
 -- Split s s1 s2 can be formed if s = s1 ++ s2  
 
-data Split {A : Set}: List A → List A → List A → Set where
- emp : {l : List A} → Split l [] l
- plus : {l1 l2 l : List A}{a : A} → Split l l1 l2 → Split (a ∷ l) (a ∷ l1) l2
+data Split {A : Set}: {n m : ℕ} → Vec A (n + m) → Vec A n → Vec A m → Set where
+ emp : {n : ℕ}{v : Vec A n} → Split v [] v
+ plus : {n m : ℕ}{v1 : Vec A n}{v2 : Vec A m}{v : Vec A (n + m)}{a : A} → Split v v1 v2 → Split (a ∷ v) (a ∷ v1) v2
 
 -- splits makes all possible splits of a list and returns the 2 parts in a triple with a proof that they realz form the original list 
 
-splits : {A : Set} → (s : List A) → List (Σ (List A × List A) ((λ { (s1 , s2) → Split s s1 s2 }))) 
-splits [] = [ (([] , []) , emp) ]
-splits  (x ∷ xs) = map (λ {((s1 , s2) , p) → ((x ∷ s1) , s2) , plus p}) (splits xs) ++ [ (([] , x ∷ xs) , emp) ]
+splits : {n : ℕ} → {A : Set} → (v : Vec A n) → Vec (Σ (ℕ × ℕ) (λ {(a , b) → Σ ((Vec A a) × (Vec A b) × ((a + b) ≡ n)) (λ { (v1 , v2 , refl) → Split {A} {a} {b} v v1 v2})})) (suc n)
+splits [] = ((0 , 0) , ([] , [] , refl) , emp) ∷ []
+splits {n} (x ∷ xs) = (map {!!} (splits {!!})) ++ [ (0 , n) , (([] , (x ∷ xs , refl)) , emp) ]
+--Vec (Σ (ℕ × ℕ) (λ {(a , b) →(n ≡ (a + b) × Σ (Vec A a × Vec A b) (λ { (s1 , s2) → Split s s1 s2 }))})) 
+--splits [] = [ (([] , []) , emp) ]
+--splits  (x ∷ xs) = map (λ {((s1 , s2) , p) → ((x ∷ s1) , s2) , plus p}) (splits xs) ++ [ (([] , x ∷ xs) , emp) ]
+
+{-
 
 -- What is important here is the new lists first element will be a split
 --where the first list contains all the elements and therefore the second list is empty
@@ -101,58 +107,4 @@ matcher (r1 ⊹ r2) s = concatMap
                          (λ {((s1 , s2), p) → (s1 , s2) , matcher r1 s1 , matcher r2 s2 , p})
                          (splits s)))
 matcher (r1 ∣ r2) s = map (choice ∘ inj1) (matcher r1 s) ++ map (choice ∘ inj2)  (matcher r2 s)
-
---some examples
-
-reg1 : RegEx  -- /*a*/ type comment
-reg1 = (char '/') ⊹ ((char '*') ⊹ (((((char 'a') ∣ char '/') ∣ (((char '*') ⊹ ((char '*') *)) ⊹ (char 'a'))) *) ⊹ (((char '*') ⊹ ((char '*') *)) ⊹ (char '/'))))
-
-t1' : List(Match reg1 (toList "/*a*/"))
-t1' = matcher reg1 (toList "/*a*/")
-t2' = matcher reg1 (toList "/***/")
-t3' = matcher reg1 (toList "/****/")
-t4' = matcher reg1 (toList "/*a**a*/")
-t5' = matcher reg1 (toList "/*a***/")
-t6' = matcher reg1 (toList "/***a*/")
-t7' = matcher reg1 (toList "/***a**a***/")
-
-reg2 : RegEx
-reg2 = (((char 'a') ⊹ (char 'a')) ∣ ((char 'a'))) *
-
-t8' = matcher reg2 (toList "aa")
-
-reg3 : RegEx
-reg3 = ((char 'a') ∣ ((char 'a') ⊹ (char 'a')))*
-
-t9' = matcher reg3 (toList "aa")
-
-reg4 : RegEx
-reg4 = ((char 'a') *) *
-
-t10' = matcher reg4 (toList "aaaa")
-
-
-t1 : List(Match reg1 (toList "/*a*/"))
-t1 = matcher reg1 (toList "/*a*/")
-t2 = matcher reg1 (toList "/***/")
-t3 = matcher reg1 (toList "/****/")
-t4 = matcher reg1 (toList "/*a**a*/")
-t5 = matcher reg1 (toList "/*a***/")
-t6 = matcher reg1 (toList "/***a*/")
-t7 = matcher reg1 (toList "/***a**a***/")
-
-reg5 = (char 'a' *) *
-
-reg6 = ((char 'a' ⊹ char 'b') *) *
-
-
-t11 = matcher reg5 (toList "aa")
-t12 = matcher reg5 (toList "aaa")
-t13 = matcher reg6 (toList "ababab")
-
-{-
-a** 
-aaa
-
-(aaa) (aa)(a) [(a)(aa)] (a)(a)(a)
 -}
