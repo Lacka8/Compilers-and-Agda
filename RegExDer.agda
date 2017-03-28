@@ -7,6 +7,7 @@ open import Data.List using(List;[];_∷_;[_];_++_)
 open import Relation.Binary.PropositionalEquality using(_≡_;refl)
 open import Relation.Nullary using(Dec;yes;no;¬_)
 open import Data.Sum using(_⊎_) renaming(inj₁ to inj1;inj₂ to inj2)
+open import Data.Empty using(⊥)
 
 data RegEx : Set where
  ∅    : RegEx
@@ -287,13 +288,31 @@ therome1 (r *) {s} {c} x with lemma3 (der c r) (r *) x
 therome1 (r *) {s} {c} x | con x₁ l l₁ with therome1 r l
 ...| t = star (dec2 (con (add x₁) t l₁))
 
+match∅ : ¬ Match ∅ []
+match∅ = λ ()
+
+void :{A : Set} → ⊥ → A
+void = λ ()
+
+eq : {A : Set} → (a : A) → a ≡ a
+eq x = refl
 
 therome2 : (r : RegEx) → {s : List Char} → {c : Char} → Match r (c ∷ s) → Match (der c r) s
 therome2 ∅ ()
 therome2 ε ()
-therome2 ⟦ x ⟧ {s} {c} x₁ with x ≟ c
-therome2 ⟦ x ⟧ {.[]} {.x} char | yes refl = {!!}
-therome2 ⟦ x ⟧ {.[]} {.x} char | no ¬p = {!!}
-therome2 (r ∣ r₁) x = {!!}
-therome2 (r ⊹ r₁) x = {!!}
-therome2 (r *) x = {!!}
+therome2 ⟦ x ⟧ {s} {.x} char with x ≟ x
+therome2 ⟦ x ⟧ {.[]} {.x} char | yes refl = eps
+therome2 ⟦ x ⟧ {.[]} {.x} char | no ¬p = void (¬p (eq x))
+therome2 (r ∣ r₁) {s} {c} (dec1 x) = lemma2 (der c r) (der c r₁) (dec1 (therome2 r x))
+therome2 (r ∣ r₁) {s} {c} (dec2 x) = lemma2 (der c r) (der c r₁) (dec2 (therome2 r₁ x)) 
+therome2 (r ⊹ r₁) x with empty r
+therome2 (r ⊹ r₁) {l} {c}(con emp x₁ x₂) | yes p = lemma2  ((der c r) ⊹' r₁) (der c r₁) (dec2 (therome2 r₁ x₂))
+therome2 (r ⊹ r₁){l} {c}(con (add x) x₁ x₂) | yes p = lemma2 (der c r  ⊹' r₁) (der c  r₁) (dec1 (lemma4 (der c r) r₁ (con x (therome2 r x₁) x₂)))
+therome2 (r ⊹ r₁) (con emp x₁ x₂) | no ¬p = void (¬p x₁)
+therome2 (r ⊹ r₁){l} {c} (con (add x) x₁ x₂) | no ¬p = lemma4 (der c r) r₁ (con x (therome2 r x₁) x₂)
+therome2 (r *) (star (dec1 ()))
+therome2 (r *) (star (dec2 (con emp x₁ x₂))) = therome2 (r *) x₂
+therome2 (r *){l} {c}(star (dec2 (con (add x) x₁ x₂))) = lemma4 (der c r) (r *) (con x (therome2 r x₁) x₂)
+
+
+
