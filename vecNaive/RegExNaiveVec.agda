@@ -1,15 +1,15 @@
 module RegExNaiveVec where
 
-open import Function using(_∘_;_∋_)
+open import Function using(_∘_{-;_∋_-})
 open import Relation.Nullary using(yes;no)
 open import Data.Char using(Char;_≟_)
-open import Data.Nat using(ℕ;zero;suc;_≤_;z≤n;s≤s;_+_;_⊔_)
---open import Data.List using(List;[];_∷_;[_];map;concat;_++_;concatMap;foldr;length)--renaming(monad to monad)
-open import Relation.Binary.PropositionalEquality using(_≡_;refl)
+open import Data.Nat using(ℕ;zero;suc;_+_)
+open import Data.List using(List;[];_∷_;concatMap) renaming (map to mapL;_++_ to _+l+_)--renaming(monad to monad)
+open import Relation.Binary.PropositionalEquality using(_≡_;refl;cong;subst;sym)-- renaming (cong to cong≡)
 open import Data.Sum using(_⊎_) renaming(inj₁ to inj1;inj₂ to inj2)
 open import Data.Product using(_×_;Σ;_,_) renaming(proj₁ to proj1;proj₂ to proj2)
 open import Data.String using(toList)
-open import Data.Vec using(Vec;[];_∷_;[_];map;_++_;fromList)
+open import Data.Vec using(Vec;[];_∷_;[_];map;_++_;fromList;reverse) renaming (toList to vecToList)
 
 --open import Category.Monad
 --open import Agda.Primitive
@@ -36,6 +36,20 @@ data Split {A : Set}: {n m : ℕ} → Vec A (n + m) → Vec A n → Vec A m → 
 Splitlet : {A : Set} → {n : ℕ} → Vec A n → Set
 Splitlet {A} {n} v = (Σ (ℕ × ℕ) (λ {(a , b) → Σ ((Vec A a) × (Vec A b) × ((a + b) ≡ n)) (λ { (v1 , v2 , refl) → Split {A} {a} {b} v v1 v2})}))
 
+--split : {A : Set} → {n a b : ℕ} → (v : Vec A n) → (v1 : Vec A a) → (v2 : Vec A b) → (a + b) ≡ n → Split v v1 v2
+--split = ?
+{-
+record Splitlet {A : Set}{n : ℕ} :  Set where
+  constructor splitlet 
+  field
+    v : Vec A n
+    a : ℕ
+    b : ℕ
+    e : (a + b) ≡ n
+    v1 : Vec A a
+    v2 : Vec A b
+    spl : Split {!!} v1 v2
+-}
 
 Splits : {A : Set} → {n : ℕ}→ Vec A n → Set
 Splits {A} {n} v = Vec (Splitlet v) (suc n)
@@ -44,46 +58,45 @@ suffix : {n : ℕ} → {A : Set} → (v : Vec A n) → Splitlet v
 suffix {n} v = (0 , n) , (([] , (v , refl)) , emp)
 
 append : {n : ℕ} → {A : Set} → {xs : Vec A n} → (x : A) → Splitlet xs → Splitlet (x ∷ xs)
-append {n} {xs = xs} x s = (1 , n) , (x ∷ [] , (xs , refl)) , plus emp
+append {.(a + b)} {xs = xs} x ((a , b) , (s1 , s2 , refl) , p) = (suc a , b) , (x ∷ s1 , (s2 , refl)) , plus p
+
+n+sm=sn+m : (n m : ℕ) → n + (suc m) ≡ (suc n) + m
+n+sm=sn+m zero m = refl
+n+sm=sn+m (suc n) m = cong suc (n+sm=sn+m n m)
+
++comm : (n m : ℕ) → n + m ≡ m + n
++comm zero zero = refl
++comm zero (suc m) = cong suc (+comm zero m)
++comm (suc n) m = subst (λ x → suc (n + m) ≡ x) (sym (n+sm=sn+m m n)) (cong suc (+comm n m))
+
+--splits : {n : ℕ} → {A : Set} → (v : Vec A n) → Splits v
+--splits [] = (suffix []) ∷ []
+--splits {n} (x ∷ xs) = (map (append x) (splits xs)) ++ [ (suffix (x ∷ xs)) ]
+
+splits' : {n : ℕ} → {A : Set} → (v : Vec A n) → Splits v
+splits' [] = (suffix []) ∷ []
+splits' {n} (x ∷ xs) = (suffix (x ∷ xs)) ∷ (map (append x) (splits' xs))
 
 splits : {n : ℕ} → {A : Set} → (v : Vec A n) → Splits v
-splits [] = ((0 , 0) , ([] , [] , refl) , emp) ∷ []
-splits {n} (x ∷ xs) =   (suffix (x ∷ xs))  ∷ (map (append x) (splits xs))
+splits v = reverse (splits' v) 
 
---Vec (Σ (ℕ × ℕ) (λ {(a , b) →(n ≡ (a + b) × Σ (Vec A a × Vec A b) (λ { (s1 , s2) → Split s s1 s2 }))})) 
---splits [] = [ (([] , []) , emp) ]
---splits  (x ∷ xs) = map (λ {((s1 , s2) , p) → ((x ∷ s1) , s2) , plus p}) (splits xs) ++ [ (([] , x ∷ xs) , emp) ]
 
-{-
 
 -- What is important here is the new lists first element will be a split
 --where the first list contains all the elements and therefore the second list is empty
 --This is not used, but this way matching can be sped up by makeing this function evaluate lazily
 
--- This function is not used but it counts the maximum stepps it would take to match a regex on a string (not a proof just a calculation)
-
-maxSteps : RegEx → List Char → ℕ
-maxSteps ε _ = 1
-maxSteps (char _) _ = 1
-maxSteps (r1 ⊹ r2) s = suc(foldr _⊔_ 0 (map (λ {((s1 , s2), p) → maxSteps r1 s1 + maxSteps r2 s2}) (splits s)))
-maxSteps (_ *) [] = 1
-maxSteps (r *) (_ ∷ s) = suc (maxSteps (r *) s)
-maxSteps (r1 ∣ r2) s = suc (maxSteps r1 s ⊔ maxSteps r2 s)
-
 --A Match r l can be form if the Regex r accepts l 
 
-data Match : RegEx → List Char → Set where
+data Match : RegEx → {n : ℕ} → Vec Char n → Set where
  empty : Match  ε []  
  char : {c1 c2 : Char} → c1 ≡ c2 → Match (char c2) [ c1 ]
- con : {s1 s2 s : List Char}{r1 r2 : RegEx} → Split s s1 s2  → Match r1 s1 → Match r2 s2 → Match (r1 ⊹ r2) s
+ con : {n m : ℕ}{s1 : Vec Char n}{s2 : Vec Char m}{s : Vec Char (n + m)}{r1 r2 : RegEx} → Split s s1 s2  → Match r1 s1 → Match r2 s2 → Match (r1 ⊹ r2) s
  star0 : {r : RegEx} → Match (r *) []
- star' : {s s1 s2 : List Char}{a : Char}{r : RegEx} → Split (a ∷ s) (a ∷ s1) s2 → Match r (a ∷ s1) → Match (r *) s2  → Match (r *) (a ∷ s)
- choice : {s : List Char}{r1 r2 : RegEx} → (Match r1 s) ⊎ (Match r2 s) → Match (r1 ∣ r2) s
+ star' : {n m : ℕ}{s1 : Vec Char n}{s2 : Vec Char m}{s : Vec Char (n + m)}{a : Char}{r : RegEx} → Split (a ∷ s) (a ∷ s1) s2 → Match r (a ∷ s1) → Match (r *) s2  → Match (r *) (a ∷ s)
+ choice : {n : ℕ}{s : Vec Char n}{r1 r2 : RegEx} → (Match r1 s) ⊎ (Match r2 s) → Match (r1 ∣ r2) s
 
 --See that the star' has to take at least 1 char at a time so ε* would terminate with a star0
-
---Couldnt find it in stl so wrote mz own
---should work as the haskells version 
 
 unzip : {A B : Set} → (List A × List B) → List (A × B)
 unzip ([] , b) = []
@@ -92,10 +105,24 @@ unzip (a ∷ as , b ∷ bs) = (a , b) ∷ (unzip (as , bs))
 
 --This big boy takes care pf evrything when matching
 -- the * and ⊹ deffinitions look ugly but couldnt find a way to make theme look nice
+mutual
 
-{-# TERMINATING #-}
+  matcher : {n : ℕ} → (r : RegEx)  → (s : Vec Char n) →  List (Match r s)
+  matcher ε [] = empty ∷ []
+  matcher ε (x ∷ s) = []
+  matcher (char c) [] = []
+  matcher (char c) (x ∷ []) with x ≟ c
+  matcher (char c) (.c ∷ []) | yes refl = (char refl) ∷ []
+  matcher (char c) (x ∷ []) | no ¬p = []
+  matcher (char c) (_ ∷ _ ∷ _) = []
+  matcher (r1 ⊹ r2) s = concatMap {!(λ {(ms , p) → mapL (λ {(m1 , m2) → con p m1 m2}) (unzip ms)})!} (mapL (λ {((a , b) , (s1 , s2 , e) , p) → {!!}}) ((vecToList (splits s))))
+  matcher (r *) s = {!!}
+  matcher (r1 ∣ r2) s = (mapL (choice ∘ inj1) (matcher r1 s)) +l+ mapL (choice ∘ inj2) (matcher r2 s)
 
-matcher :(r : RegEx)  → (s : List Char) →  List (Match r s)
+--  splitMatcher : {n : ℕ} → (r1 r2 : RegEx) → (v : Vec Char n) → List (Σ (Splitlet v) (λ {((_ , _) , (s1 , s2 , refl) , _) → List (Match r1 s1) × List (Match r2 s2)}))
+ -- splitMatcher r1 r2 v = mapL (λ { ((a , b) , (s1 , s2 , e) , p) → {!!}}) (vecToList (splits v))
+--(λ {((a , b) , (s1 , s2 , e) , p) → ((a , b) , (s1 , (s2 , e)) , p) , matcher r1 s1 , matcher r2 s2 , ?})
+{-
 matcher ε []        = [ empty ]
 matcher ε (_ ∷ _)   = []
 matcher (char _) [] = []
