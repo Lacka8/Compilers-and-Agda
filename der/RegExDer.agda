@@ -3,11 +3,15 @@ module RegExDer where
 --http://homepages.dcc.ufmg.br/~camarao/certified-parsing-regex.pdf
 
 open import Data.Char using(Char;_≟_)
-open import Data.List using(List;[];_∷_;[_];_++_)
-open import Relation.Binary.PropositionalEquality using(_≡_;refl;cong)
+open import Data.List using(List;[];_∷_;[_];_++_;length;take)
+open import Relation.Binary.PropositionalEquality using(_≡_;refl;cong;trans)
 open import Relation.Nullary using(Dec;yes;no;¬_)
 open import Data.Sum using(_⊎_) renaming(inj₁ to inj1;inj₂ to inj2)
 open import Data.Empty using(⊥)
+open import Data.String using(toList)
+open import Data.Product using(_×_;Σ;_,_) renaming(proj₁ to proj1;proj₂ to proj2)
+open import Data.Nat using (ℕ;suc;zero;_≤_;z≤n;s≤s)
+open import Data.Maybe using(Maybe;just;nothing)
 
 data RegEx : Set where
  ∅    : RegEx
@@ -54,6 +58,7 @@ empty (l ∪ r) | no ¬p1       | p2     = no (empty∪1 ¬p1)
 empty (r *) = yes (star (dec1 eps))
 
 _∣'_ : RegEx → RegEx → RegEx
+--∅ ∣' ∅ = ∅
 ∅ ∣' r = r
 r ∣' ∅ = r
 l ∣' r = l ∣ r
@@ -281,9 +286,6 @@ derSound (r *)   {x} d   with conSound (der x r) (r *) d
 derSound (r *)   {x} d | con s m1 m2   with derSound r m1
 derSound (r *)   {x} d | con s m1 m2 | p = star (dec2 (con (add s) p m2))
 
-match∅ : ¬ Match ∅ []
-match∅ = λ ()
-
 void :{A : Set} → ⊥ → A
 void = λ ()
 
@@ -307,3 +309,120 @@ derComp (r *)       (star (dec1 ()))
 derComp (r *)       (star (dec2 (con emp m1 m2)))     = derComp (r *) m2
 derComp (r *)   {x} (star (dec2 (con (add s) m1 m2))) = conComp (der x r) (r *) (con s (derComp r m1) m2)
 
+-- not based on the paper
+
+parse : (r : RegEx) → (s : List Char) → Dec (Match r s)
+parse r []   with empty r
+parse r [] | yes p = yes p
+parse r [] | no ¬p = no ¬p
+parse r (x ∷ xs)   with parse (der x r) xs
+parse r (x ∷ xs) | yes p = yes (derSound r p)
+parse r (x ∷ xs) | no ¬p = no (λ m → ¬p (derComp r m))
+
+data PreMatch (r : RegEx) (s : List Char): Set where
+ pm : {t : List Char} → Match r (s ++ t) → PreMatch r s
+
+red : RegEx → RegEx
+red ∅       = ∅
+red ε       = ε
+red ⟦ x ⟧   = ⟦ x ⟧
+red (l ∣ r) = l ∣' r
+red (l ∪ r) = l ∪' r
+red (r *)   = r *'
+
+redSound : {s : List Char} → (r : RegEx) → Match (red r) s → Match r s
+redSound ∅       m = m
+redSound ε       m = m
+redSound ⟦ c ⟧   m = m
+redSound (l ∣ r) m = decSound l r m
+redSound (l ∪ r) m = conSound l r m
+redSound (r *)   m = starSound r m
+
+redComp : {s : List Char} → (r : RegEx) → Match r s → Match (red r) s
+redComp ∅       m = m
+redComp ε       m = m
+redComp ⟦ c ⟧   m = m
+redComp (l ∣ r) m = decComp l r m
+redComp (l ∪ r) m = conComp l r m
+redComp (r *)   m = starComp r m
+
+unSplit : (t1 t2 : List Char) → Split (t1 ++ t2) t1 t2
+unSplit [] t2 = emp
+unSplit (x ∷ t1) t2 = add (unSplit t1 t2)
+
+preParse : (r : RegEx) → (s : List Char) → Dec (PreMatch r s)
+preParse ∅ [] = no (λ { (pm ())})
+preParse ε [] = yes (pm eps)
+preParse ⟦ c ⟧ [] = yes (pm char)
+preParse (l ∣ r) [] with preParse l [] | preParse r []
+preParse (l ∣ r) [] | yes (pm m) | _ = yes (pm (dec1 m))
+preParse (l ∣ r) [] | no _ | yes (pm m) = yes (pm (dec2 m))
+preParse (l ∣ r) [] | no ¬p1 | no ¬p2 = no (λ { (pm (dec1 x)) → ¬p1 (pm x) ; (pm (dec2 x)) → ¬p2 (pm x)})
+preParse (l ∪ r) [] with preParse l [] | preParse r []
+preParse (l ∪ r) [] | yes (pm {t1} m1) | yes (pm {t2} m2) = yes (pm (con (unSplit t1 t2) m1 m2))
+preParse (l ∪ r) [] | yes p | (no ¬p) = no (λ { (pm (con _ _  m)) → ¬p (pm m)})
+preParse (l ∪ r) [] | no ¬p | p2 = no (λ { (pm (con _ m _)) → ¬p (pm m)})
+preParse (r *) [] = yes (pm (star (dec1 eps)))
+preParse ∅ (x ∷ xs) = no (λ { (pm ())})
+preParse ε (x ∷ xs) = no (λ { (pm ())})
+preParse ⟦ c ⟧ (x ∷ []) with x ≟ c
+preParse ⟦ c ⟧ (.c ∷ []) | yes refl = yes (pm char)
+preParse ⟦ c ⟧ (x ∷ []) | no ¬p = no (λ { (pm char) → ¬p refl})
+preParse ⟦ c ⟧ (x1 ∷ x2 ∷ xs) = no (λ { (pm ())})
+preParse (l ∣ r) (x ∷ xs) with preParse (der x l) xs | preParse (der x r) xs
+preParse (l ∣ r) (x ∷ xs) | yes (pm m) | _ = yes (pm (dec1 (derSound l m)))
+preParse (l ∣ r) (x ∷ xs) | no ¬p | yes (pm m) = yes (pm (dec2 (derSound r m)))
+preParse (l ∣ r) (x ∷ xs) | no ¬p1 | no ¬p2 = no (λ { (pm (dec1 m)) → ¬p1 (pm (derComp l m)) ; (pm (dec2 m)) → ¬p2 (pm (derComp r m))})
+preParse (l ∪ r) (x ∷ xs) with preParse (der x (l ∪ r)) xs
+preParse (l ∪ r) (x ∷ xs) | yes (pm m) = yes (pm (derSound (l ∪ r) m))
+preParse (l ∪ r) (x ∷ xs) | no ¬p = no (λ { (pm m) → ¬p (pm (derComp (l ∪ r) m))})
+preParse (r *) (x ∷ xs) with preParse (der x (r *)) xs
+preParse (r *) (x ∷ xs) | yes (pm m) = yes (pm (derSound (r *) m))
+preParse (r *) (x ∷ xs) | no ¬p = no (λ { (pm m) → ¬p (pm (derComp (r *) m))}) 
+
+--ppAccept : {r : RegEx} → {s : List Char} → PreMatch r s → Dec (Match r s)
+--ppAccept {r} {[]} (pm x) = empty r
+--ppAccept {r} {x ∷ s} (pm x₁) = {!!}
+
+ders : List Char → RegEx → RegEx
+ders [] r = r
+ders (x ∷ s) r = ders s (der x r)
+
+dersSound : (r : RegEx) → (s : List Char) → Match (ders s r) [] → Match r s
+dersSound ∅ [] ()
+dersSound ∅ (x ∷ s) x₁ = derSound ∅ (dersSound ∅ s x₁)
+dersSound ε [] x = x
+dersSound ε (x ∷ s) x₁ = {!!}
+dersSound ⟦ x ⟧ s x₁ = {!!}
+dersSound (r ∣ r₁) s x = {!!}
+dersSound (r ∪ r₁) s x = {!!}
+dersSound (r *) s x = {!!}
+
+dersComp : (r : RegEx) → (s : List Char) → Match r s → Match (ders s r) [] 
+dersComp ∅ s ()
+dersComp ε [] x = x
+dersComp ε (x ∷ s) ()
+dersComp ⟦ c ⟧ [] ()
+dersComp ⟦ c ⟧ (x ∷ []) m with x ≟ c
+dersComp ⟦ c ⟧ (.c ∷ []) m | yes refl = eps
+dersComp ⟦ c ⟧ (.c ∷ []) char | no ¬p = void (¬p refl)
+dersComp ⟦ c ⟧ (x1 ∷ x2 ∷ s) ()
+dersComp (l ∣ r) [] x = x
+dersComp (l ∣ r) (x ∷ s) m = dersComp (der x l ∣' der x r) s (derComp (l ∣ r) m)
+dersComp (l ∪ r) [] x = x
+dersComp (l ∪ r) (x ∷ s) m with empty l
+dersComp (l ∪ r) (x ∷ s) (con emp m m₁) | yes p = dersComp ((der x l ∪' r) ∣' der x r) s (derComp ((ε ∣ l) ∪ r) (con emp (dec2 m) m₁))
+dersComp (l ∪ r) (x ∷ s) (con (add x₁) m m₁) | yes p = dersComp ((der x l ∪' r) ∣' der x r) s (derComp ((ε ∣ l) ∪ r) (con (add x₁) (dec2 m) m₁))
+dersComp (l ∪ r) (x ∷ s) (con emp m m₁) | no ¬p = void (¬p m)
+dersComp (l ∪ r) (x ∷ s) (con (add x₁) m m₁) | no ¬p = dersComp (der x l ∪' r) s (conComp (der x l) r (con x₁ (derComp l m) m₁))
+dersComp (r *) [] x = x
+dersComp (r *) (x ∷ s) m = dersComp (der x r ∪' (r *)) s (derComp (r *) m)
+
+--Usefull stuf??
+
+Token : Set → Set
+Token A = RegEx × (List Char → A)
+
+lex : {A : Set} → List Char → List (Token A) → Maybe A
+lex {A} s [] = nothing
+lex {A} s (x ∷ rs) = {!!}
