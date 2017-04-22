@@ -392,8 +392,8 @@ dersSound : (r : RegEx) → (s : List Char) → Match (ders s r) [] → Match r 
 dersSound ∅ [] ()
 dersSound ∅ (x ∷ s) x₁ = derSound ∅ (dersSound ∅ s x₁)
 dersSound ε [] x = x
-dersSound ε (x ∷ s) x₁ = {!!}
-dersSound ⟦ x ⟧ s x₁ = {!!}
+dersSound ε (x ∷ s) x₁ = derSound ε (dersSound ∅ s x₁)
+dersSound ⟦ x ⟧ s x₁ = ?
 dersSound (r ∣ r₁) s x = {!!}
 dersSound (r ∪ r₁) s x = {!!}
 dersSound (r *) s x = {!!}
