@@ -13,8 +13,8 @@ data Match {A : Set}: RegEx → List A → Set where
  char : {c : A} → Match ⟦ c ⟧ [ c ]
  dec1 : {l r : RegEx}{s : List A} → Match l s → Match (l ∣ r) s 
  dec2 : {l r : RegEx}{s : List A} → Match r s → Match (l ∣ r) s 
- con  : {l r : RegEx}{s s1 s2 : List A} → Split s s1 s2 → Match l s1 → Match  r s2 → Match (l ∪ r) s
- star : {r : RegEx}{s : List A} → Match (ε ∣ (r ∪ (r *))) s → Match (r *) s
+ con  : {l r : RegEx}{s s1 s2 : List A} → Split s s1 s2 → Match l s1 → Match  r s2 → Match (l ⨁ r) s
+ star : {r : RegEx}{s : List A} → Match (ε ∣ (r ⨁ (r *))) s → Match (r *) s
 
 
 unSplit : {A : Set}(t1 t2 : List A) → Split (t1 ++ t2) t1 t2

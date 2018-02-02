@@ -3,7 +3,7 @@ module RegExDer where
 --http://homepages.dcc.ufmg.br/~camarao/certified-parsing-regex.pdf
 
 open import Data.Char using(Char;_≟_)
-open import Data.List using(List;[];_∷_;[_];_++_;length;take)
+open import Data.List using(List;[];_∷_;[_];_++_;length;take;foldr)
 open import Relation.Binary.PropositionalEquality using(_≡_;refl;cong;trans)
 open import Relation.Nullary using(Dec;yes;no;¬_)
 open import Data.Sum using(_⊎_) renaming(inj₁ to inj1;inj₂ to inj2)
@@ -18,6 +18,27 @@ open import Match
 open import Empty
 open import SmartCons (_≟_) 
 open import Der (_≟_)
+
+-- match
+-- (empty ()
+
+ders : List Char → RegEx → RegEx
+ders s r = foldr der r s
+
+dersSound : {s1 s2 : List Char} → (r : RegEx) → Match (ders s1 r) s2 → Match r (s1 ++ s2)
+dersSound r m = {!!}
+
+-- try???
+
+accept : (s : List Char) → (r : RegEx{Char}) → Dec (Match r s)
+accept [] r = empty r
+accept (x ∷ s) r with accept s (der x r)
+accept (x ∷ s) r | yes p = {!!}
+accept (x ∷ s) r | no ¬p = {!!}
+
+--longest match
+
+
 
 --parser?
 

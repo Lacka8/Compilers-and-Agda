@@ -5,5 +5,5 @@ data RegEx {A : Set} : Set where
  ε    : RegEx
  ⟦_⟧  : A  → RegEx
  _∣_  : RegEx {A} → RegEx {A} → RegEx
- _∪_  : RegEx {A} → RegEx {A} → RegEx
+ _⨁_  : RegEx {A} → RegEx {A} → RegEx
  _*   : RegEx {A} → RegEx
