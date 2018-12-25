@@ -1,9 +1,9 @@
-open import Relation.Nullary.Decidable
-open import Relation.Binary
-open import Relation.Binary.PropositionalEquality using(_≡_;refl;cong)
+open import Relation.Binary using(Decidable)
+open import Relation.Binary.PropositionalEquality using(_≡_)
 
 module Der {A : Set} (_≟_ : Decidable {A = A} _≡_) where
 
+open import Relation.Binary.PropositionalEquality using(refl)
 open import Data.List using(List;[];_∷_)
 open import Relation.Nullary using(Dec;yes;no;¬_)
 open import Data.Empty using(⊥) renaming (⊥-elim to void)
@@ -13,7 +13,7 @@ open import Match
 open import Empty
 open import SmartCons (_≟_) 
 
-der : A → RegEx → RegEx
+der : A → RegEx A → RegEx A
 der x ∅ = ∅
 der x ε = ∅
 der x ⟦ c ⟧    with x ≟ c
@@ -25,7 +25,7 @@ der x (l ⨁ r) | yes p = ((der x l) ⨁' r) ∣' der x r
 der x (l ⨁ r) | no ¬p = ((der x l) ⨁' r)
 der x (r *) = (der x r) ⨁' (r *)
 
-derSound : {s : List A} → (r : RegEx) → {x : A} → Match (der x r) s → Match r (x ∷ s)
+derSound : {xs : List A} → (r : RegEx A) → {x : A} → Match (der x r) xs → Match r (x ∷ xs)
 derSound ∅ ()
 derSound ε ()
 derSound         ⟦ c ⟧ {x}  d    with x ≟ c
@@ -48,7 +48,7 @@ derSound (r *)   {x} d   with conSound (der x r) (r *) d
 derSound (r *)   {x} d | con s m1 m2   with derSound r m1
 derSound (r *)   {x} d | con s m1 m2 | p = star (dec2 (con (add s) p m2))
 
-derComp : {s : List A} → (r : RegEx) → {c : A} → Match r (c ∷ s) → Match (der c r) s
+derComp : {xs : List A} → (r : RegEx A) → {c : A} → Match r (c ∷ xs) → Match (der c r) xs
 derComp ∅ ()
 derComp ε ()
 derComp ⟦ x ⟧ char   with x ≟ x
